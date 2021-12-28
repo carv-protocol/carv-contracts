@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.11;
 
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract NFTOffering is AccessControl, ReentrancyGuard {
+contract NFTOfferingERC20 is AccessControl, ReentrancyGuard {
     mapping(uint => bool) public supportedTypes;                 // Map from NFT type to supported status
+    mapping(uint => address) public paymentTokens;               // Map from NFT type to contract address of the payment token 
     mapping(uint => uint) public maxOfferCounts;                 // Map from NFT type to max # NFTs to be added
     mapping(uint => uint) public addedCounts;                    // Map from NFT type to # NFTs already added
     mapping(uint => uint) public offerCounts;                    // Map from NFT type to index of the current buyable NFT in that type. offCount=0 means no NFT is left in that type.
     mapping(uint => mapping(uint => uint)) public offers;        // Map from NFT type to offerId-to-tokenId mapping
     mapping(uint => uint) public unitPrices;                     // Map from NFT type to unit price(Wei).
-    uint public fund;                                            // Accumulated fund collected
+    mapping(uint => uint) public funds;                          // Map from NFT type to payment tokens collected
     IERC721 nftCollection;                                       // The supported NFT collection
     bool public paused = true;                                   // If the claiming is paused
     mapping(uint => mapping(address => uint)) public whitelist;  // Map from NFT type to address-to-claimable-amount mapping
@@ -22,6 +24,7 @@ contract NFTOffering is AccessControl, ReentrancyGuard {
     bytes32 public constant CLAIM_STOCK_ROLE = keccak256("CLAIM_STOCK_ROLE");  // Role that can claim the remaining NFTs
 
     event SupportedTypeSet(uint nftType, bool supported);
+    event PaymentTokenSet(uint nftType, address paymentToken);
     event UnitPriceSet(uint nftType, uint unitPrice);
     event MaxOfferCountSet(uint nftType, uint maxAmount);
     event Paused();
@@ -49,20 +52,20 @@ contract NFTOffering is AccessControl, ReentrancyGuard {
         _;
     }
 
-    // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/87326f7313e851a603ef430baa33823e4813d977/contracts/utils/Address.sol#L37-L59
-    function sendValue(address payable recipient, uint256 amount) internal {
-        require(address(this).balance >= amount, "Address: insufficient balance");
-        (bool success, ) = recipient.call{value: amount}("");
-        require(success, "Address: unable to send value, recipient may have reverted");
-    }
-
     function setSupportedType(uint _type, bool _supported) public onlyRole(DEFAULT_ADMIN_ROLE) inPause {
         supportedTypes[_type] = _supported;
         emit SupportedTypeSet(_type, _supported);
     }
 
+    function setPaymentToken(uint _type, address _paymentToken) public onlyRole(DEFAULT_ADMIN_ROLE) inPause {
+        require(supportedTypes[_type], "NFT type not supported");
+        paymentTokens[_type] = _paymentToken;
+        emit PaymentTokenSet(_type, _paymentToken);
+    }
+
     function setUnitPrice(uint _type, uint _unitPrice) public onlyRole(DEFAULT_ADMIN_ROLE) inPause {
         require(supportedTypes[_type], "NFT type not supported");
+        require(paymentTokens[_type] != address(0), "ERC20 payment token is not set");
         unitPrices[_type] = _unitPrice;
         emit UnitPriceSet(_type, _unitPrice);
     }
@@ -99,27 +102,29 @@ contract NFTOffering is AccessControl, ReentrancyGuard {
         emit OfferAdded(_type);
     }
 
-    function fillOffers(uint _type, uint _amount) public payable inProgress nonReentrant {
+    function fillOffers(uint _type, uint _amount) public inProgress nonReentrant {
         require(supportedTypes[_type], "NFT type not supported");
         require(_amount > 0, "Amount must be greater than 0");
         require(_amount <= whitelist[_type][msg.sender], "Insufficient claimable quota");
         require(offerCounts[_type] >= _amount, "Insufficient stock");
+        require(paymentTokens[_type] != address(0), "ERC20 payment token is not set");
         require(unitPrices[_type]>0, "Unit price is not set");
-        require(msg.value == unitPrices[_type] * _amount, "The transaction value should match with the total price");
+        uint totalPrice = unitPrices[_type] * _amount;
         whitelist[_type][msg.sender] -= _amount;
-        fund += msg.value;
+        funds[_type] += totalPrice;
+        IERC20(paymentTokens[_type]).transferFrom(msg.sender, address(this), totalPrice);
         for(uint i = 1; i <= _amount; i ++){
             nftCollection.transferFrom(address(this), msg.sender, offers[_type][offerCounts[_type]]);
             offerCounts[_type] --;
         }
-        emit OfferFilled(_type, _amount, msg.value, msg.sender);
+        emit OfferFilled(_type, _amount, totalPrice, msg.sender);
     }
 
-    function claimFund() public onlyRole(CLAIM_FUND_ROLE) inPause nonReentrant {
-        require(fund > 0, "There is no fund to be claimed");
-        uint toTransfer = fund;
-        fund = 0;
-        sendValue(payable(msg.sender), toTransfer);
+    function claimFund(uint _type) public onlyRole(CLAIM_FUND_ROLE) inPause nonReentrant {
+        require(funds[_type] > 0, "There is no fund to be claimed");
+        uint toTransfer = funds[_type];
+        funds[_type] = 0;
+        IERC20(paymentTokens[_type]).transfer(msg.sender, toTransfer);
         emit FundClaimed();
     }
 
