@@ -2,11 +2,14 @@
 pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract NFTOfferingERC20 is AccessControl, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     mapping(uint => bool) public supportedTypes;                 // Map from NFT type to supported status
     mapping(uint => address) public paymentTokens;               // Map from NFT type to contract address of the payment token 
     mapping(uint => uint) public maxOfferCounts;                 // Map from NFT type to max # NFTs to be added
@@ -112,7 +115,7 @@ contract NFTOfferingERC20 is AccessControl, ReentrancyGuard {
         uint totalPrice = unitPrices[_type] * _amount;
         whitelist[_type][msg.sender] -= _amount;
         funds[_type] += totalPrice;
-        IERC20(paymentTokens[_type]).transferFrom(msg.sender, address(this), totalPrice);
+        IERC20(paymentTokens[_type]).safeTransferFrom(msg.sender, address(this), totalPrice);
         for(uint i = 1; i <= _amount; i ++){
             nftCollection.transferFrom(address(this), msg.sender, offers[_type][offerCounts[_type]]);
             offerCounts[_type] --;
@@ -124,7 +127,7 @@ contract NFTOfferingERC20 is AccessControl, ReentrancyGuard {
         require(funds[_type] > 0, "There is no fund to be claimed");
         uint toTransfer = funds[_type];
         funds[_type] = 0;
-        IERC20(paymentTokens[_type]).transfer(msg.sender, toTransfer);
+        IERC20(paymentTokens[_type]).safeTransfer(msg.sender, toTransfer);
         emit FundClaimed();
     }
 
