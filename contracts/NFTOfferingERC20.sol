@@ -67,12 +67,14 @@ contract NFTOfferingERC20 is AccessControl, ReentrancyGuard {
     }
 
     function setNFTCollection(uint8 _type, address _nftCollection) public onlyRole(DEFAULT_ADMIN_ROLE) typeSupported(_type) inPause(_type) {
+        require(nftCollections[_type] == address(0), "nftCollection cannot be updated once set");
         require(_nftCollection != address(0), "_nftCollection is a zero address");
         nftCollections[_type] = _nftCollection;
         emit NFTCollectionSet(_type, _nftCollection);
     }
 
     function setPaymentToken(uint8 _type, address _paymentToken) public onlyRole(DEFAULT_ADMIN_ROLE) typeSupported(_type) inPause(_type) {
+        require(paymentTokens[_type] == address(0), "paymentToken cannot be updated once set");
         require(_paymentToken != address(0), "_paymentToken is a zero address");
         paymentTokens[_type] = _paymentToken;
         emit PaymentTokenSet(_type, _paymentToken);
