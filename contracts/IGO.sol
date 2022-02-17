@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.11;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract IgoErc20V4 is AccessControl, ReentrancyGuard {
-    using SafeERC20 for IERC20;
+contract IGO is AccessControl, ReentrancyGuard {
 
     address public nftCollection;               // NFT contract address
-    address public paymentToken;                // Contract address of the payment token 
     uint public maxOfferCount;                  // Max # NFTs to be added
     uint public addedCount;                     // # NFTs already added
-    uint public offerCount;                     // Index of the current buyable NFT in that type. offCount=0 means no NFT is left in that type.
+    uint public offerCount;                     // Index of the current buyable NFT in that type. offCount=0 means no NFT is left in that type
     mapping(uint => uint) private offers;       // OfferId to tokenId mapping
-    uint public unitPrice;                      // Unit price(Wei).
-    uint public fund;                           // Payment tokens collected
+    uint public unitPrice;                      // Unit price(Wei)
+    uint public minPurchase = 1;                // Minimum NFT to buy per purchase
+    uint public fund;                           // Fund collected
     bool public paused = true;                  // Pause status
     bool public requireWhitelist = true;        // If require whitelist
     mapping(address => uint) public whitelist;  // Address-to-claimable-amount mapping
@@ -27,8 +24,8 @@ contract IgoErc20V4 is AccessControl, ReentrancyGuard {
     bytes32 public constant CLAIM_STOCK_ROLE = keccak256("CLAIM_STOCK_ROLE");  // Role that can claim the remaining NFTs
 
     event NFTCollectionSet(address nftCollection);
-    event PaymentTokenSet(address paymentToken);
     event UnitPriceSet(uint unitPrice);
+    event MinPurchaseSet(uint minPurchase);
     event MaxOfferCountSet(uint maxAmount);
     event Paused();
     event UnPaused();
@@ -56,6 +53,13 @@ contract IgoErc20V4 is AccessControl, ReentrancyGuard {
         _;
     }
 
+    // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/87326f7313e851a603ef430baa33823e4813d977/contracts/utils/Address.sol#L37-L59
+    function sendValue(address payable recipient, uint256 amount) internal {
+        require(address(this).balance >= amount, "Address: insufficient balance");
+        (bool success, ) = recipient.call{value: amount}("");
+        require(success, "Address: unable to send value, recipient may have reverted");
+    }
+
     function setNFTCollection(address _nftCollection) public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
         require(nftCollection == address(0), "nftCollection cannot be updated once set");
         require(_nftCollection != address(0), "_nftCollection is a zero address");
@@ -63,16 +67,14 @@ contract IgoErc20V4 is AccessControl, ReentrancyGuard {
         emit NFTCollectionSet(_nftCollection);
     }
 
-    function setPaymentToken(address _paymentToken) public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
-        require(paymentToken == address(0), "paymentToken cannot be updated once set");
-        require(_paymentToken != address(0), "_paymentToken is a zero address");
-        paymentToken = _paymentToken;
-        emit PaymentTokenSet(_paymentToken);
-    }
-
     function setUnitPrice(uint _unitPrice) public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
         unitPrice = _unitPrice;
         emit UnitPriceSet(_unitPrice);
+    }
+
+    function setMinPurchase(uint _minPurchase) public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+        minPurchase = _minPurchase;
+        emit MinPurchaseSet(_minPurchase);
     }
 
     function setMaxOfferCount(uint _maxCount) public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
@@ -87,18 +89,17 @@ contract IgoErc20V4 is AccessControl, ReentrancyGuard {
 
     function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
         require(nftCollection != address(0), "NFT contract address is not set");
-        require(paymentToken != address(0), "ERC20 payment token is not set");
         require(unitPrice > 0, "Unit price is not set");
         paused = false;
         emit UnPaused();
     }
 
-    function setRequireWhitelist(bool _requireWhitelist) public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+    function setRequireWhitelist(bool _requireWhitelist) public onlyRole(DEFAULT_ADMIN_ROLE) {
         requireWhitelist = _requireWhitelist;
         emit SetRequireWhitelist();
     }
 
-    function setWhitelist(address _whitelisted, uint _claimable) public onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+    function setWhitelist(address _whitelisted, uint _claimable) public onlyRole(DEFAULT_ADMIN_ROLE) {
         whitelist[_whitelisted] = _claimable;
         emit WhitelistAdded();
     }
@@ -131,14 +132,14 @@ contract IgoErc20V4 is AccessControl, ReentrancyGuard {
         emit OfferBatchAdded();
     }
 
-    function fillOffers(uint _amount) public inProgress() nonReentrant {
-        require(_amount > 0, "Amount must be greater than 0");
+    function fillOffers(uint _amount) public payable inProgress() nonReentrant {
+        require(_amount >= minPurchase, "Amount must >= minPurchase");
         require(!requireWhitelist || _amount <= whitelist[msg.sender], "Insufficient claimable quota");
         require(offerCount >= _amount, "Insufficient stock");
+        require(msg.value == unitPrice * _amount, "The transaction value should match with the total price");
         uint totalPrice = unitPrice * _amount;
         if (requireWhitelist) whitelist[msg.sender] -= _amount;
         fund += totalPrice;
-        IERC20(paymentToken).safeTransferFrom(msg.sender, address(this), totalPrice);
         for(uint i = 1; i <= _amount; i ++){
             IERC721(nftCollection).transferFrom(address(this), msg.sender, offers[offerCount]);
             offerCount --;
@@ -147,11 +148,10 @@ contract IgoErc20V4 is AccessControl, ReentrancyGuard {
     }
 
     function claimFund() public onlyRole(CLAIM_FUND_ROLE) inPause() nonReentrant {
-        require(paymentToken != address(0), "ERC20 payment token is not set");
         require(fund > 0, "There is no fund to be claimed");
         uint toTransfer = fund;
         fund = 0;
-        IERC20(paymentToken).safeTransfer(msg.sender, toTransfer);
+        sendValue(payable(msg.sender), toTransfer);
         emit FundClaimed();
     }
 
