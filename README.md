@@ -1,4 +1,4 @@
-# wow-contract
-Smart contracts used on WoWarriors
+# carv-contracts
+Smart contracts used on Carv
 
-- Audit Report by [Certik](https://www.certik.com/projects/wowarriors)
+<!-- - Audit Report by [Certik](https://www.certik.com/projects/wowarriors) -->

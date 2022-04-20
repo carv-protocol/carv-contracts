@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract IGO is AccessControl, ReentrancyGuard {
+contract CarvINO is AccessControl, ReentrancyGuard {
 
     address public nftCollection;               // NFT contract address
     uint public maxOfferCount;                  // Max # NFTs to be added
