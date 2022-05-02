@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.11;
+pragma solidity 0.8.11;
 
 import "./@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -10,15 +10,19 @@ import "./@openzeppelin/contracts/utils/Counters.sol";
 
 /// @custom:security-contact security@carv.xyz
 contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721Burnable, Ownable {
-
     using Counters for Counters.Counter;
 
     Counters.Counter private _tokenIdCounter;
-
     // Trusted forwarders for relayer usage, for ERC2771 support
     mapping(address => bool) private _trustedForwarders;
-
     bool private _transferable = false;
+
+    event TrustedForwarderAdded(address forwarder);
+    event TrustedForwarderRemoved(address forwarder);
+    event TransferableSet(bool transferable);
+    event AchievementCarved(address indexed to, uint256 indexed tokenId);
+    event AchievementRecarved(address indexed to, uint256 indexed oldTokenId);
+    event TokenURIUpdated(uint256 indexed tokenId);
 
     constructor() ERC721("Carv Achievements", "CARV-ACHV") {}
 
@@ -33,10 +37,12 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
 
     function addTrustedForwarder(address forwarder) external onlyOwner {
         _trustedForwarders[forwarder] = true;
+        emit TrustedForwarderAdded(forwarder);
     }
 
     function removeTrustedForwarder(address forwarder) external onlyOwner {
         delete _trustedForwarders[forwarder];
+        emit TrustedForwarderRemoved(forwarder);
     }
 
     function transferable() external view returns (bool) {
@@ -45,6 +51,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
 
     function setTransferable(bool newTransferable) external onlyOwner {
         _transferable = newTransferable;
+        emit TransferableSet(newTransferable);
     }
 
     function carv(address to, string memory uri) public onlyOwner {
@@ -52,6 +59,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
         _tokenIdCounter.increment();
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
+        emit AchievementCarved(to, tokenId);
     }
 
     function carvedAmount() external view returns (uint256) {
@@ -74,6 +82,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
 
     function setTokenURI(uint256 tokenId, string memory newTokenURI) external onlyOwner {
         _setTokenURI(tokenId, newTokenURI);
+        emit TokenURIUpdated(tokenId);
     }
 
     function tokenURI(uint256 tokenId)
@@ -93,6 +102,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
     function recarv(address to, uint256 oldTokenId, string memory newTokenURI) external onlyOwner {
         _burn(oldTokenId);
         carv(to, newTokenURI);
+        emit AchievementRecarved(to, oldTokenId);
     }
 
     /**
@@ -103,7 +113,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
     }
 
     function _msgSender() internal view override returns (address sender) {
-        if (isTrustedForwarder(msg.sender)) {
+        if (msg.data.length >= 20 && isTrustedForwarder(msg.sender)) {
             assembly {
                 sender := shr(96, calldataload(sub(calldatasize(), 20)))
             }

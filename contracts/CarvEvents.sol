@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.11;
+pragma solidity 0.8.11;
 
 import "./@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "./@openzeppelin/contracts/access/Ownable.sol";
@@ -15,33 +15,33 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     // Collection name
     string private _name;
-
     // Collection symbol
     string private _symbol;
-
     // Mapping from badge ID to token URI
     mapping(uint256 => string) private _uris;
-
     // Mapping from badge ID to the max supply amount
     mapping(uint256 => uint256) private _maxSupply;
-
     // Mapping from badge ID to the carved amount
     mapping(uint256 => uint256) private _carvedAmount;
-
     // Indicator of if a badge ID is synthetic
     mapping(uint256 => bool) private _synthetic;
-
     // Indicator of if a Synthetic badge ID is open to carv;
     mapping(uint256 => bool) private _openToCarv;
-
     // Mapping from badge ID to ingredient badge IDs
     mapping(uint256 => uint256[]) private _ingredientBadgeIds;
-
     // Mapping from badge ID to ingredient badge amounts
     mapping(uint256 => uint256[]) private _ingredientBadgeAmounts;
-
     // Trusted forwarders for relayer usage, for ERC2771 support
     mapping(address => bool) private _trustedForwarders;
+
+    event TrustedForwarderAdded(address forwarder);
+    event TrustedForwarderRemoved(address forwarder);
+    event MaxSupplySet(uint256 indexed tokenId, uint256 maxSupply);
+    event SyntheticSet(uint256 indexed tokenId, bool synthetic);
+    event OpenToCarvSet(uint256 indexed tokenId, bool openToCarv);
+    event IngredientBadgesSet(uint256 indexed tokenId, uint256[] indexed ingredientBadgeIds, uint256[] indexed ingredientBadgeAmounts);
+    event SyntheticCarved(address indexed to, uint256 indexed tokenId, uint256 amount);
+    event EventsCarved(address indexed to, uint256[] indexed tokenIds, uint256[] amounts);
 
     constructor() ERC1155("https://carv.xyz") {
         _name = "Carv Events";
@@ -58,10 +58,12 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     function addTrustedForwarder(address forwarder) external onlyOwner {
         _trustedForwarders[forwarder] = true;
+        emit TrustedForwarderAdded(forwarder);
     }
 
     function removeTrustedForwarder(address forwarder) external onlyOwner {
         delete _trustedForwarders[forwarder];
+        emit TrustedForwarderRemoved(forwarder);
     }
 
     function uri(uint256 id) override external view returns (string memory) {
@@ -70,6 +72,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     function setTokenURI(uint256 id, string memory tokenURI) external onlyOwner {
         _uris[id] = tokenURI;
+        emit URI(tokenURI, id);
     }
 
     function maxSupply(uint256 id) external view returns (uint256) {
@@ -78,6 +81,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     function setMaxSupply(uint256 id, uint256 newMaxSupply) external onlyOwner {
         _maxSupply[id] = newMaxSupply;
+        emit MaxSupplySet(id, newMaxSupply);
     }
 
     function carvedAmount(uint256 id) external view returns (uint256) {
@@ -90,6 +94,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     function setSynthetic(uint256 id, bool newIsSynthetic) external onlyOwner {
         _synthetic[id] = newIsSynthetic;
+        emit SyntheticSet(id, newIsSynthetic);
     }
 
     function openToCarv(uint256 id) external view returns (bool) {
@@ -98,6 +103,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     function setOpenToCarv(uint256 id, bool newOpenToCarv) external onlyOwner {
         _openToCarv[id] = newOpenToCarv;
+        emit OpenToCarvSet(id, newOpenToCarv);
     }
 
     function ingredientBadgeIds(uint256 id) external view returns (uint256[] memory) {
@@ -114,6 +120,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
         require(newIngredientBadgeIds.length > 0 && newIngredientBadgeIds.length == newIngredientBadgeAmounts.length, "CarvEvents: Ingredient token IDs and amounts should have the same length greater than zero");
         _ingredientBadgeIds[id] = newIngredientBadgeIds;
         _ingredientBadgeAmounts[id] = newIngredientBadgeAmounts;
+        emit IngredientBadgesSet(id, newIngredientBadgeIds, newIngredientBadgeAmounts);
     }
 
     // Burn ingredient badges to carv synthetic badges
@@ -127,14 +134,17 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
         }
         _burnBatch(_msgSender(), _ingredientBadgeIds[id], burnBadgeAmounts);
         _mint(_msgSender(), id, amount, "");
+        emit SyntheticCarved(_msgSender(), id, amount);
     }
 
-    function carv(address account, uint256 id, uint256 amount) external onlyOwner {
-        _mint(account, id, amount, "");
+    function carv(address to, uint256 id, uint256 amount) external onlyOwner {
+        _mint(to, id, amount, "");
+        emit EventsCarved(to, _asSingletonArray(id), _asSingletonArray(amount));
     }
 
     function carvBatch(address to, uint256[] memory ids, uint256[] memory amounts) external onlyOwner {
         _mintBatch(to, ids, amounts, "");
+        emit EventsCarved(to, ids, amounts);
     }
 
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) internal override(ERC1155, ERC1155Supply) {
@@ -162,7 +172,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
     }
 
     function _msgSender() internal view override returns (address sender) {
-        if (isTrustedForwarder(msg.sender)) {
+        if (msg.data.length >= 20 && isTrustedForwarder(msg.sender)) {
             assembly {
                 sender := shr(96, calldataload(sub(calldatasize(), 20)))
             }
