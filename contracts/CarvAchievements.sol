@@ -1,21 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.11;
 
-import "./@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "./@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "./@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "./@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "./@openzeppelin/contracts/access/Ownable.sol";
-import "./@openzeppelin/contracts/utils/Counters.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "./@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 
-/// @custom:security-contact security@carv.xyz
-contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721Burnable, Ownable {
-    using Counters for Counters.Counter;
+/**
+ * @title CarvAchievements
+ * @author Carv
+ * @custom:security-contact security@carv.io
+ */
+contract CarvAchievements is Initializable, ERC721Upgradeable, ERC721EnumerableUpgradeable, ERC721URIStorageUpgradeable, PausableUpgradeable, OwnableUpgradeable, ERC721BurnableUpgradeable, UUPSUpgradeable {
+    using CountersUpgradeable for CountersUpgradeable.Counter;
 
-    Counters.Counter private _tokenIdCounter;
+    CountersUpgradeable.Counter private _tokenIdCounter;
     // Trusted forwarders for relayer usage, for ERC2771 support
     mapping(address => bool) private _trustedForwarders;
-    bool private _transferable = false;
+    bool private _transferable;
 
     event TrustedForwarderAdded(address forwarder);
     event TrustedForwarderRemoved(address forwarder);
@@ -24,15 +31,38 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
     event AchievementRecarved(address indexed to, uint256 indexed oldTokenId);
     event TokenURIUpdated(uint256 indexed tokenId);
 
-    constructor() ERC721("Carv Achievements", "CARV-ACHV") {}
+    function initialize() initializer public {
+        __ERC721_init("Carv Achievements", "CARV-ACHV");
+        __ERC721Enumerable_init();
+        __ERC721URIStorage_init();
+        __Pausable_init();
+        __Ownable_init();
+        __ERC721Burnable_init();
+        __UUPSUpgradeable_init();
+        setTransferable(false);
+    }
 
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721, ERC721Enumerable)
+        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        onlyOwner
+        override
+    {}
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function addTrustedForwarder(address forwarder) external onlyOwner {
@@ -49,7 +79,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
         return(_transferable);
     }
 
-    function setTransferable(bool newTransferable) external onlyOwner {
+    function setTransferable(bool newTransferable) public onlyOwner {
         _transferable = newTransferable;
         emit TransferableSet(newTransferable);
     }
@@ -68,7 +98,8 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
 
     function _beforeTokenTransfer(address from, address to, uint256 tokenId)
         internal
-        override(ERC721, ERC721Enumerable)
+        whenNotPaused
+        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
     {
         if (from != address(0) && to != address(0)) {
             require(_transferable, "CarvAchievements: Achievement badges are not directly transferable. Use Carv to teleport badges among wallets you own");
@@ -76,7 +107,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
         super._beforeTokenTransfer(from, to, tokenId);
     }
 
-    function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
+    function _burn(uint256 tokenId) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
         super._burn(tokenId);
     }
 
@@ -88,7 +119,7 @@ contract CarvAchievements is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721B
     function tokenURI(uint256 tokenId)
         public
         view
-        override(ERC721, ERC721URIStorage)
+        override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
         returns (string memory)
     {
         return super.tokenURI(tokenId);

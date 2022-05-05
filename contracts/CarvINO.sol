@@ -4,8 +4,14 @@ pragma solidity 0.8.11;
 import "./@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./@openzeppelin/contracts/access/AccessControl.sol";
 import "./@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./@openzeppelin/contracts/security/Pausable.sol";
 
-contract CarvINO is AccessControl, ReentrancyGuard {
+/**
+ * @title CarvINO Collection
+ * @author Carv
+ * @custom:security-contact security@carv.io
+ */
+contract CarvINO is Pausable, AccessControl, ReentrancyGuard {
 
     address public nftCollection;               // NFT contract address
     uint public maxOfferCount;                  // Max # NFTs to be added
@@ -15,7 +21,6 @@ contract CarvINO is AccessControl, ReentrancyGuard {
     uint public unitPrice;                      // Unit price(Wei)
     uint public minPurchase = 1;                // Minimum NFT to buy per purchase
     uint public fund;                           // Fund collected
-    bool public paused = true;                  // Pause status
     bool public requireWhitelist = true;        // If require whitelist
     mapping(address => uint) public whitelist;  // Address-to-claimable-amount mapping
 
@@ -27,8 +32,6 @@ contract CarvINO is AccessControl, ReentrancyGuard {
     event UnitPriceSet(uint unitPrice);
     event MinPurchaseSet(uint minPurchase);
     event MaxOfferCountSet(uint maxAmount);
-    event Paused();
-    event UnPaused();
     event SetRequireWhitelist(bool requireWhitelist);
     event OffersAdded(uint addedCount);
     event WhitelistsAdded(uint addedCount);
@@ -39,16 +42,17 @@ contract CarvINO is AccessControl, ReentrancyGuard {
     constructor() {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _setupRole(CLAIM_STOCK_ROLE, msg.sender);
+        _pause();
     }
 
-    modifier inPause() {
-        require(paused, "CarvINO: Claims in progress");
-        _;
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _pause();
     }
 
-    modifier inProgress() {
-        require(!paused, "CarvINO: Claims paused");
-        _;
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(nftCollection != address(0), "CarvINO: NFT contract address is not set");
+        require(unitPrice > 0, "CarvINO: Unit price is not set");
+        _unpause();
     }
 
     // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/87326f7313e851a603ef430baa33823e4813d977/contracts/utils/Address.sol#L37-L59
@@ -58,38 +62,26 @@ contract CarvINO is AccessControl, ReentrancyGuard {
         require(success, "Address: unable to send value, recipient may have reverted");
     }
 
-    function setNFTCollection(address _nftCollection) external onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+    function setNFTCollection(address _nftCollection) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
         require(nftCollection == address(0), "CarvINO: nftCollection cannot be updated once set");
         require(_nftCollection != address(0), "CarvINO: _nftCollection is a zero address");
         nftCollection = _nftCollection;
         emit NFTCollectionSet(_nftCollection);
     }
 
-    function setUnitPrice(uint _unitPrice) external onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+    function setUnitPrice(uint _unitPrice) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
         unitPrice = _unitPrice;
         emit UnitPriceSet(_unitPrice);
     }
 
-    function setMinPurchase(uint _minPurchase) external onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+    function setMinPurchase(uint _minPurchase) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
         minPurchase = _minPurchase;
         emit MinPurchaseSet(_minPurchase);
     }
 
-    function setMaxOfferCount(uint _maxCount) external onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+    function setMaxOfferCount(uint _maxCount) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
         maxOfferCount = _maxCount;
         emit MaxOfferCountSet(_maxCount);
-    }
-
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) inProgress() {
-        paused = true;
-        emit Paused();
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
-        require(nftCollection != address(0), "CarvINO: NFT contract address is not set");
-        require(unitPrice > 0, "CarvINO: Unit price is not set");
-        paused = false;
-        emit UnPaused();
     }
 
     function setRequireWhitelist(bool _requireWhitelist) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -102,7 +94,7 @@ contract CarvINO is AccessControl, ReentrancyGuard {
         emit WhitelistsAdded(1);
     }
 
-    function setWhitelistBatch(address[] calldata _whitelisted, uint[] calldata _claimable) external onlyRole(DEFAULT_ADMIN_ROLE) inPause() {
+    function setWhitelistBatch(address[] calldata _whitelisted, uint[] calldata _claimable) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
         require(_whitelisted.length == _claimable.length, "CarvINO: _whitelisted and _claimable should have the same length");
         for(uint i=0; i<_whitelisted.length; i++){
             whitelist[_whitelisted[i]] = _claimable[i];
@@ -110,7 +102,7 @@ contract CarvINO is AccessControl, ReentrancyGuard {
         emit WhitelistsAdded(_whitelisted.length);
     }
 
-    function addOffer(uint _tokenId) external onlyRole(MAKE_OFFER_ROLE) inPause() nonReentrant {
+    function addOffer(uint _tokenId) external onlyRole(MAKE_OFFER_ROLE) whenPaused nonReentrant {
         require(addedCount < maxOfferCount, "CarvINO: Reached maxOfferCount");
         offerCount ++;
         addedCount ++;
@@ -119,7 +111,7 @@ contract CarvINO is AccessControl, ReentrancyGuard {
         emit OffersAdded(1);
     }
 
-    function addOfferBatch(uint[] calldata _tokenIds) external onlyRole(MAKE_OFFER_ROLE) inPause() nonReentrant {
+    function addOfferBatch(uint[] calldata _tokenIds) external onlyRole(MAKE_OFFER_ROLE) whenPaused nonReentrant {
         require(addedCount + _tokenIds.length <= maxOfferCount, "CarvINO: Reached maxOfferCount");
         for(uint i=0; i<_tokenIds.length; i++){
             offerCount ++;
@@ -130,7 +122,7 @@ contract CarvINO is AccessControl, ReentrancyGuard {
         emit OffersAdded(_tokenIds.length);
     }
 
-    function fillOffers(uint _amount) external payable inProgress() nonReentrant {
+    function fillOffers(uint _amount) external payable whenNotPaused nonReentrant {
         require(_amount >= minPurchase, "CarvINO: Amount must >= minPurchase");
         require(!requireWhitelist || _amount <= whitelist[msg.sender], "CarvINO: Insufficient claimable quota");
         require(offerCount >= _amount, "CarvINO: Insufficient stock");
@@ -145,7 +137,7 @@ contract CarvINO is AccessControl, ReentrancyGuard {
         emit OffersFilled(_amount, totalPrice, msg.sender);
     }
 
-    function claimFund() external onlyRole(CLAIM_FUND_ROLE) inPause() nonReentrant {
+    function claimFund() external onlyRole(CLAIM_FUND_ROLE) whenPaused nonReentrant {
         require(fund > 0, "CarvINO: There is no fund to be claimed");
         uint toTransfer = fund;
         fund = 0;
@@ -153,7 +145,7 @@ contract CarvINO is AccessControl, ReentrancyGuard {
         emit FundClaimed(toTransfer);
     }
 
-    function claimRemainingStock(uint _amount) external onlyRole(CLAIM_STOCK_ROLE) inPause() nonReentrant {
+    function claimRemainingStock(uint _amount) external onlyRole(CLAIM_STOCK_ROLE) whenPaused nonReentrant {
         require(nftCollection != address(0), "CarvINO: NFT contract address is not set");
         require(_amount > 0, "CarvINO: Amount must be greater than 0");
         require(_amount <= offerCount, "CarvINO: Insufficient stock");

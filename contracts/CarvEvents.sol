@@ -1,28 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.11;
 
-import "./@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "./@openzeppelin/contracts/access/Ownable.sol";
-import "./@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
-import "./@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155BurnableUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155URIStorageUpgradeable.sol";
+import "./@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "./@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
- * @title CarvEvents Collection
- * @author Carv.xyz
- * @custom:security-contact security@carv.xyz
+ * @title CarvEvents
+ * @author Carv
+ * @custom:security-contact security@carv.io
  */
-contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
+contract CarvEvents is Initializable, ERC1155Upgradeable, OwnableUpgradeable, PausableUpgradeable, ERC1155BurnableUpgradeable, ERC1155SupplyUpgradeable, ERC1155URIStorageUpgradeable, UUPSUpgradeable {
 
     // Collection name
     string private _name;
     // Collection symbol
     string private _symbol;
-    // Mapping from badge ID to token URI
-    mapping(uint256 => string) private _uris;
     // Mapping from badge ID to the max supply amount
     mapping(uint256 => uint256) private _maxSupply;
     // Mapping from badge ID to the carved amount
     mapping(uint256 => uint256) private _carvedAmount;
+    // Global supply of all token IDs
+    uint256 private _globalSupply;
     // Indicator of if a badge ID is synthetic
     mapping(uint256 => bool) private _synthetic;
     // Indicator of if a Synthetic badge ID is open to carv;
@@ -43,10 +47,19 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
     event SyntheticCarved(address indexed to, uint256 indexed tokenId, uint256 amount);
     event EventsCarved(address indexed to, uint256[] indexed tokenIds, uint256[] amounts);
 
-    constructor() ERC1155("https://carv.xyz") {
+    function initialize() initializer public {
+        __ERC1155_init("");
+        __Ownable_init();
+        __Pausable_init();
+        __ERC1155Burnable_init();
+        __ERC1155Supply_init();
+        __ERC1155URIStorage_init();
+        __UUPSUpgradeable_init();
         _name = "Carv Events";
         _symbol = "CARV-EVNT";
     }
+
+    function _authorizeUpgrade(address newImplementation) internal onlyOwner override {}
 
     function name() external view returns (string memory) {
         return _name;
@@ -66,13 +79,20 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
         emit TrustedForwarderRemoved(forwarder);
     }
 
-    function uri(uint256 id) override external view returns (string memory) {
-        return(_uris[id]);
+    function uri(uint256 tokenId) override(ERC1155Upgradeable, ERC1155URIStorageUpgradeable) public view returns (string memory) {
+        return super.uri(tokenId);
     }
 
-    function setTokenURI(uint256 id, string memory tokenURI) external onlyOwner {
-        _uris[id] = tokenURI;
-        emit URI(tokenURI, id);
+    function setURI(uint256 tokenId, string memory tokenURI) external onlyOwner {
+        _setURI(tokenId, tokenURI);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function maxSupply(uint256 id) external view returns (uint256) {
@@ -86,6 +106,10 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     function carvedAmount(uint256 id) external view returns (uint256) {
         return(_carvedAmount[id]);
+    }
+
+    function totalSupply() external view returns (uint256) {
+        return(_globalSupply);
     }
 
     function synthetic(uint256 id) external view returns (bool) {
@@ -139,7 +163,9 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
 
     function carv(address to, uint256 id, uint256 amount) external onlyOwner {
         _mint(to, id, amount, "");
-        emit EventsCarved(to, _asSingletonArray(id), _asSingletonArray(amount));
+        uint256[] memory ids = _asSingletonArray(id);
+        uint256[] memory amounts = _asSingletonArray(amount);
+        emit EventsCarved(to, ids, amounts);
     }
 
     function carvBatch(address to, uint256[] memory ids, uint256[] memory amounts) external onlyOwner {
@@ -147,7 +173,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
         emit EventsCarved(to, ids, amounts);
     }
 
-    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) internal override(ERC1155, ERC1155Supply) {
+    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) internal whenNotPaused override(ERC1155Upgradeable, ERC1155SupplyUpgradeable) {
         if (to == address(0)) {
             for (uint256 i = 0; i < ids.length; ++i) {
                 require(totalSupply(ids[i]) >= amounts[i], "ERC1155Supply: Insufficient supply");
@@ -158,6 +184,7 @@ contract CarvEvents is ERC1155, Ownable, ERC1155Burnable, ERC1155Supply {
             for (uint256 i = 0; i < ids.length; ++i) {
                 require(_maxSupply[ids[i]] == 0 || _carvedAmount[ids[i]] + amounts[i] <= _maxSupply[ids[i]], "CarvEvents: Insufficient supply");
                 _carvedAmount[ids[i]] += amounts[i];
+                _globalSupply += amounts[i];
             }
         }
 
