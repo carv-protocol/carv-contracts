@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import "hardhat/console.sol";
-contract CarvProtocalService is ERC7231 {
+contract CarvProtocalService is ERC7231,AccessControlUpgradeable{
 
     address private _rewards_address;
     address private _admin_address;
@@ -73,17 +73,15 @@ contract CarvProtocalService is ERC7231 {
         _;
     }
 
-    // TODO
     function _only_admin() private view {
-        // require(
-        //     // hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-        //     "sender doesn't have admin role"
-        // );
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "sender doesn't have admin role"
+        );
     }
 
-    // TODO
     function _only_tees() private view {
-        // require(hasRole(TEE_ROLE, msg.sender), "sender doesn't have tee role");
+        require(hasRole(TEE_ROLE, msg.sender), "sender doesn't have tee role");
     }
 
     event SubmitCampaign(
@@ -121,6 +119,12 @@ contract CarvProtocalService is ERC7231 {
         _admin_address = msg.sender;
         _rewards_address = rewards_address;
         _cur_token_id = 1;
+
+        super._setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC7231, AccessControlUpgradeable) returns (bool) {
+            return super.supportsInterface(interfaceId);
     }
 
     /**
@@ -271,7 +275,7 @@ contract CarvProtocalService is ERC7231 {
     /**
      * @notice verify_campaign_user  the campaign infomation
      */
-    function verify_campaign_user(address user_address,string calldata campaign_id,string calldata proof) external payable{
+    function verify_campaign_user(address user_address,string calldata campaign_id,string calldata proof) external payable only_tees{ 
         reward memory reward_info = campain_reward_map[campaign_id];
         
         IERC20 erc20 = IERC20(reward_info.contract_address);
@@ -295,5 +299,13 @@ contract CarvProtocalService is ERC7231 {
         //validate the param
         return _proof_campaign_map[user_address][campaign_id];
     }
+
+    /**
+        @notice add_tee_role
+     */
+    function add_tee_role(address tee_address) external only_admin {
+        _setupRole(TEE_ROLE, tee_address);
+    }
+
 
 }

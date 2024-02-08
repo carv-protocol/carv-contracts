@@ -4,3 +4,4 @@ node_modules
 protocol-contract/artifacts
 protocol-contract/node_modules
 protocol-contract/.env
+subgraph/carvprotocalservice/node_modules

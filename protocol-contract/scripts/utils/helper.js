@@ -61,15 +61,15 @@ function hex2a(hexx) {
     return str;
 }
 
-const gasPrice = 0x02540be400
-const gasLimit = 0x7a1200
+const gasPrice = "210000000000"
+const gasLimit = "4000000"
 const fixLen = 16
 async function deployContract(account, contractName, ...args) {
 
     const contractFactory = await ethers.getContractFactory(contractName, account)
     const contract = await contractFactory.connect(account).deploy(
         ...args,
-        { gasPrice, gasLimit }
+        { gasPrice, gasLimit ,nonce:159}
     );
 
     // console.log(contractName.padEnd(fixLen, ' ') + " address is : ", contract.address);
@@ -88,7 +88,7 @@ async function deployUpgradeContract(account, contractName, ...args) {
         contractFactory,
         args,
         { initializer: intContractName },{
-            gasPrice:"60000000000"
+            gasPrice:"200000000000"
         }
     );
 

@@ -29,3 +29,20 @@ yarn install
 yarn test
 
 ```
+
+/////
+1.发布到测试网络(sepolia)
+https://sepolia.etherscan.io/
+
+2.subgraph
+https://thegraph.com/studio/subgraph/campaigns/playground/
+
+
+graph init --product hosted-service xuxinlai2002/carvprotocalservice
+cd carvprotocalservice
+graph codegen && graph build
+
+graph auth --product hosted-service 2fb42c7ab6944cf7aef59953a6c0db15
+graph deploy --product hosted-service xuxinlai2002/carvprotocalservice
+
+https://thegraph.com/hosted-service/subgraph/xuxinlai2002/carvprotocalservice

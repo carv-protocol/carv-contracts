@@ -95,17 +95,19 @@ module.exports = {
       ]
     },    
 
+    sepolia: {
+      url: `https://sepolia.infura.io/v3/7e31d49d7c8a48f4a4539aff9da768e7`,
+      accounts: [
+        "0xbb568983fe7440b0197b6c990f4249fe83a07d03c7433d82c9d49f8f1e0fea3e"
+      ]
+    },
+
   },
-
-
 
 
   // solidity: '0.8.17',
   solidity: {
     compilers: [
-      {
-        version: "0.7.6"
-      },
       {
         version: "0.8.17",
         settings: { 
@@ -132,43 +134,7 @@ module.exports = {
   },
 
   etherscan: {
-
-    apiKey: {
-      opbnbMainnet: "80d774115b27420e93a1e8fd90c86860",//replace your nodereal API key
-      // mumbai: "GBzaonJ7bCxXVFkTsAFbIkyXqGeazY_j",
-      // polygonMumbai: 'JG6N2VCI5DEBC1F6HK9VP7KISDJN4EZVPP'
-    },
-
-
-    customChains: [{
-      network: "opbnbMainnet",
-      chainId: 204, // Replace with the correct chainId for the "opbnb" network
-      urls: {
-        apiURL:  "https://open-platform.nodereal.io/80d774115b27420e93a1e8fd90c86860/op-bnb-mainnet/contract/",
-        browserURL: "https://opbnbscan.com/",
-      },
-    }]
+    apiKey: "A9TYNSB1RZC713ZWRW44R4WY1CRYD9BDJ4"
   },
   
 }
-
-
-// etherscan: {
-
-//   apiKey: {
-//     opbnbTest: "80d774115b27420e93a1e8fd90c86860",//replace your nodereal API key
-//     // mumbai: "GBzaonJ7bCxXVFkTsAFbIkyXqGeazY_j",
-//     // polygonMumbai: 'JG6N2VCI5DEBC1F6HK9VP7KISDJN4EZVPP'
-//   },
-
-
-//   customChains: [{
-//     network: "opbnbTest",
-//     chainId: 5611, // Replace with the correct chainId for the "opbnb" network
-//     urls: {
-//       apiURL:  "https://open-platform.nodereal.io/80d774115b27420e93a1e8fd90c86860/op-bnb-testnet/contract/",
-//       browserURL: "https://testnet.opbnbscan.com/",
-//     },
-//   }]
-// },
-

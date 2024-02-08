@@ -258,9 +258,12 @@ describe(`main process`, () => {
 
   it('5.TEE verify campaign data and contract pay for user ', async function () {
 
-    let isSucess = await isContractTransferSuccess(
-      await usdtContract.connect(deployer).approve(campaignsServiceContract.address,20),
 
+
+    let isSucess = await isContractTransferSuccess(
+
+      await campaignsServiceContract.connect(deployer).add_tee_role(tee.address),
+      await usdtContract.connect(deployer).approve(campaignsServiceContract.address,20),
       await campaignsServiceContract.connect(tee).verify_campaign_user(
         user.address, campaign_id,"xyz 1234")
     )
