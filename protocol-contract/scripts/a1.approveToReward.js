@@ -8,19 +8,20 @@ const {
 
 const main = async () => {
 
-    const amount = 200
+    const amount = 200000000000
     let { admin ,partern} = await getInitAddress();
 
     let usdtAddress = await readConfig("1config","USDT_CONTRACT_ADDRESS");
     let usdtContract = await attachContract("TestERC20",usdtAddress,admin);
 
-    let rewardAddress = await readConfig("1config","REWARDS_CONTRACT_ADDRESS");
+    let serviceAddress = await readConfig("1config","CARV_PROTOCAL_SERVICE_CONTRACT_ADDRESS");
    
+    // partern
     let isSucess = await isContractTransferSuccess(
-        await usdtContract.connect(partern).approve(rewardAddress,amount)
+        await usdtContract.connect(admin).approve(serviceAddress,amount)
     )
 
-    console.log("approve to reward contract is %s - %s ",rewardAddress,isSucess);
+    console.log("approve to reward contract is %s - %s ",serviceAddress,isSucess);
     
 }
 

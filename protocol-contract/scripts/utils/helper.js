@@ -103,6 +103,7 @@ async function deployUpgradeContract(account, contractName, ...args) {
 async function isContractTransferSuccess(txObj) {
 
     let repObj = await txObj.wait();
+    console.log("xxl result is ",repObj);
     if (repObj.status == 1) {
         return true
     }
@@ -150,7 +151,7 @@ async function getTestData(){
     // const campaign_id = "bd0078f7-4a48-5764-92bf-00000001"
     // const url = "bafybeiasfuf66a3p5ulhww65mhxoemqgcnbeqoiuc7atscrin4rzgormji"
 
-    const campaign_id = "bd0078f7-4a48-5764-92bf-00000004"
+    const campaign_id = "bd0078f7-4a48-5764-92bf-00000003"
     const url = "QmZPQLdJ636vVTCLCxW3EmWuykgAqwzeKdbHydxCxYLhXa"
 
     const amount = 200
