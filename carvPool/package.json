@@ -1,0 +1,54 @@
+{
+  "name": "carv-staking-token",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "scripts": "npx hardhat run ",
+    "wagmi": "wagmi generate"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "4.3.4",
+    "chai-as-promised": "^7.1.1",
+    "ethereum-waffle": "^3.2.1",
+    "ethers": "^5.0.24",
+    "hardhat": "^2.9.3",
+    "hardhat-deploy": "^0.11.45",
+    "mocha": "^8.2.1"
+  },
+  "resolutions": {
+    "ethereumjs-abi": "https://registry.npmjs.org/ethereumjs-abi/-/ethereumjs-abi-0.6.8.tgz"
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "@chainlink/contracts": "0.4",
+    "@dk1a/solidity-stringutils": "^0.3.3",
+    "@ensdomains/buffer": "^0.1.1",
+    "@ensdomains/solsha1": "^0.0.3",
+    "@matterlabs/hardhat-zksync-deploy": "^0.6.3",
+    "@matterlabs/hardhat-zksync-solc": "^0.3.17",
+    "@matterlabs/hardhat-zksync-upgradable": "^0.0.1-alpha.3",
+    "@matterlabs/hardhat-zksync-verify": "^0.1.8",
+    "@nomiclabs/buidler": "^1.4.8",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@openzeppelin/contracts": "v4.9.3",
+    "@openzeppelin/contracts-upgradeable": "4.9.3",
+    "@openzeppelin/hardhat-upgrades": "^1.17.0",
+    "@wagmi/cli": "^1.5.2",
+    "axios": "^0.27.2",
+    "dotenv": "^16.0.1",
+    "eth-crypto": "^2.6.0",
+    "eth-ens-namehash": "^2.0.8",
+    "ethereum-private-key-to-address": "^0.0.7",
+    "ethereum-private-key-to-public-key": "^0.0.5",
+    "ethereum-public-key-to-address": "^0.0.5",
+    "log4js": "^6.5.2",
+    "solidity-bytes-utils": "^0.8.0",
+    "web3": "^1.0.0"
+  }
+}
